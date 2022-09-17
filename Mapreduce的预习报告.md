@@ -1,92 +1,55 @@
-﻿# Mapreduce的预习报告
+﻿#Mapreduce的预习报告
 
 
 
 ---
-##1.1 为什么要学习Mapreduce
+##1 分布式计算框架MapReduce
 
-       1.单机资源受限，比如CPU，磁盘
-       2.分布式计算的程序的复杂度特别高，难度大 mapreduce就是解决以上问题的：  
-        1.利用集群的所有cpu，所有内存，所有磁盘
-        2. mapreduce就将公共的功能的开发封装成了框架，不需要开发人员操心，开发人员只需要关注具体的业务逻辑。
+       1.可靠的、高容错的分布式计算框架，经典的并行的计算框架。
+       2.基本原理：将一个复杂的问题（数据集）分成若干个简单的子问题（数据块）进行解决（Map函数）；然后对子问题的结果进行合并（Reduce函数），得到问题解决的解（结果）。 
+        3.MapReduce模型适合于大文件处理，对很多小文件处理效率不是很高。
 
-##1.2 Mapreduce的简介
-###1.2.1 简介
+###1.1 MapReduce编程模型
 
-    1. mapreduce是hadoop的三大重要模块之一
-    2. mapreduce是一个并发的计算和分析框架，用于计算和分析分布式文件系统上的大数据集。
-    3. 将计算划分为两个阶段：一个map(映射)阶段，一个reduce(归约)阶段
-    4. 该框架的开发灵感来源于google的《mapreduce》论文
-    5. 方便开发人员在不会分布式计算的情况下，开发和运行相关计算程序。
+    1. mapreduce是一种思想或是一种编程模型。
+    2. mapreduce编程模型由两个抽象类构成，分别为mapper类和reducer类。
+    3.根据工作原理，可将mapReduce编程模型分为两类：mapreduce简单模型和mapreduce复杂模型。
+    4.mapreduce简单模型：不一定需要reduce过程。
+    5. mapreduce复杂模型：一般都需要reduce过程。
 
-###1.2.2 优缺点
- 
+###1.2 MapReduce数据流
+    
+    
 
-    1.优点
-    - 适合离线数据处理
-    - mapreduce编程简单
-    - 扩展性良好
-    - 高容错性
-    2.缺点
-    - 不适合实时计算(实时计算：毫秒级别/秒级别，离线计算:秒级别以上)
-    - 不适合流式计算(mapreduce处理的数据是静态的，不是流式的数据)
-    - 不适合DAG(有向图)计算
+    1.分片格式化数据源（InputFormat):InputFormat主要有两个任务，一是对文件进行分片，并确定Mapper的数量；二是对各分片进行格式化处理，处理成<key,value>形式的数据流并传给Mapper。
+    2.Map过程：Mapper接收<key,value>形式的数据，并处理成<key,value>形式的数据，具体的处理过程可由用户定义。
+    3.combiner过程：对Map（）端的输出先做一次合并，以减少在Map和Reduce结点之间的数据传输量，提高网络I/O性能，是mapreduce优化手段之一。
+    4.shuffle过程：指从Mapper产生的直接输出结果，经过一系列的处理，成为最终的Reducer直接输入数据为止的整个过程，这一过程也是mapreduce的核心过程。
+    5.Reduce过程：Reducer接收<key,{value     list}>形式的数据流，形成<key,value>形式的数据输出，输出数据直接写入HDFS，具体的处理过程可由用户定义。
 
-##1.3 Mapreduce的核心思想（重点）
+###1.3 MapReduce任务运行流程
+####1.3.1MRv2基本组成
 
-     简单的一句话概括：“移动计算而非移动数据”。
-    整理：
-    程序员将自己写好的业务逻辑代码和mr自带的一些组件打包成计算程序，移动到有数据存储的节点上，这样可以利用多节点的cpu的并发能力，提高计算效率（怎么提高的？一减少数据移动的开销，二利用了并发计算原理）
-    mapreduce是分为两个阶段，map阶段处理的是块文件(原始文件)，计算后的结果存储本地磁盘，reduce阶段要跨节点fetch属于自己要处理的数据，计算后的结果存储到hdfs上(当然也可以存储到客户端所在的本地磁盘)
+    1.客户端：客户端用于向Yarn集群提交任务，是MapReduce用户和Yarn集群通信的唯一途径。
+    2.MRAppMaster：MRAppMaster只负责任务管理，并不负责资源的调配。
+    3.Map Task和Reduce Task:只能运行在Yarn给定的资源限制下，由MRAppMaster和NodeManage协同管理和调度。
+####1.3.2Yarn基本组成
 
-##1.4 Mapreduce的阶段介绍（重点）
-###1.4.1 Map阶段
+    1.Resource Manage(RM):运行于NameNode，为整个集群的资源调度器，主要包括两个组件：Resource Schedule（资源调度器）和Application Manager（应用程序管理器）。
+    2.NodeManager：运行于DataNode，监控并管理单个节点的计算资源，并定时向RM汇报结点的资源使用情况，在节点上有任务时，还负责对container进行创建、运行状态的监控及最终销毁。
+    3.ApplicationMaster（AM）：负责对一个任务流的调度、管理，包括任务注册、资源申请、以及和NodeManage通信以及开启和杀掉任务。
+    4.container：Yarn架构下对运算资源的一种描述
+    
+####1.3.3任务流程
+    
 
-      map阶段处理的是原始数据，也就是块文件(处理的是本存储节点上的数据)。会将处理的块文件，以切片的形式进行逻辑运算。通过映射关系进行一一映射。map阶段会有多个mapTask,这些任务并发运行，互不干扰 默认情况下，按行进行映射成键值对， 原始块文件
-      |
-      |
-      K1,V1(有N个kv对，K1是行偏移量,v1是行记录，也就是行内容)
-      |
-      |map方法
-      |
-      | 每一对k1v1都会调用一次map方法，在map方法里进行处理，形成K2V2
-      |  
-      K2，V2  (存储到本地磁盘)
-
-###1.4.2 Reduce阶段
-
-     reduce阶段处理的是map阶段计算出来的数据(临时数据)，reduce阶段也会有多个reduceTask,并发运行，互不干扰。reduce处理的数据通常都是要跨节点fetch属于自己处理的数据。
-    fetch属于自己的一堆K2,v2，先形成<K2,<v2,v2,v2>>
-             |
-             |
-           reduce方法
-             |
-    	     |  同一个k2调用一次reduce方法，在reduce方法里进行处理，形成K3,v3
-    	     |
-           K3,V3(存储到HDFS上)
-
-##1.5 Mapreduce的编程模型
-###1.5.1 自定义Mapper类型
-
-    1. 自定义类名，继承Mapper类型
-    2. 定义K1,V1,K2,V2的泛型
-    3. 重写map方法
-
-###1.5.2 自定义Reducer类型
-
-    1. 自定义类名，继承Reducer类型
-    2. 定义K2,V2,K3,V3的泛型
-    3. 重写reduce方法
-
-###1.5.3 自定义Driver类型
-
-    1. 获取job对象
-    2. 指定驱动类型
-    3. 指定Mapper类型和Reducer类型
-    4. 指定map阶段的K2,V2类型
-    5. 指定reduce阶段的K3,V3类型
-    6. 指定分区的数量.....
-    7. 指定要统计的文件的输入路径
-    8. 指定要输出的位置路径
-    9. 提交程序
+    1.client 向ResourceManager提交任务。
+    2.ResourceManager分务第一个container，并通知相应的NodeManager启动 MRAppMaster.
+    3.NodeManager接收命令后，开辟一个container 资源空间，并在container中启动相应的 MRAppMaster.
+    4.MRAppMaster启动之后，第一步会向ResourceManager注册，这样用户可以直接通过 MRAppMaster监控任务的运行状态;之后则直接由MRAppMaster调度任务运行，重复5~8，直到任务结束。
+    5.MRAppMaster 以轮询的方式向ResourceManager申请任务运行所需的资源。
+    6.一旦ResourceManager配给了资源，MRAppMaster便会与相应的NodeManager通信让它划分Container并启动相应的任务(MapTask或ReduceTask)。
+    7.NodeManager准备好运行环境，启动任务。
+    8.各任务运行，并定时通过RPC 协议向MRAppMaster汇报自己的运行状态和进度。 MRAppMaster也会实时地监控任务的运行，当发现某个Task假死或失败时，便杀死它重新启动任务。
+    9.任务完成，MRAppMaster向ResourceManager通信，注销并关闭自己。
 
